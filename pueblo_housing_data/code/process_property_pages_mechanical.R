@@ -1,4 +1,7 @@
-do1<-list.files("Documents/qt-local/property_pages/",full.names = T)
+library(plyr)
+library(dplyr)
+library(rvest)
+do1<-list.files("Documents/qt-local/mechanicals/property_pages/",full.names = T)
 
 ht1e<-lapply(do1,function(X) {try({read_html(X) %>% html_table })})
 names(ht1e)<-basename(do1) %>% gsub(".html","",.)
@@ -10,9 +13,9 @@ colnames(demo[[1]])[1]<-"var"
 ht1e<-ht1e[names(which(improvements=="TRUE"))]
 ht1e<-ht1e[sapply(ht1e, length)>=7]
 
-ht1e[[4]][[3]]
 ht1b<-lapply(ht1e, function(X) {X[[2]] %>% pivot_wider(names_from=`Detail Type`,values_from=c(Detail,Count),values_fn = ~paste(.x,sep=";",collapse=";"))}) 
 ht1b<-ht1b %>% bind_rows(.id="PAR_NUM")
+saveRDS(ht1b,"Documents/qt-local/mechanicals/housedetails_pages.rds")
 
 demo1<-lapply(do1,function(X) {try({
   demo<-read_html(X) 
@@ -28,12 +31,14 @@ names(demo1)<-basename(do1) %>% gsub(".html","",.)
 demo1<-lapply(demo1,as.data.frame)
 
 demo2<-bind_rows(demo1,.id="PAR_NUM")
-saveRDS(demo2,"pueb_property_local.rds")
+#saveRDS(demo2,"Documents/qt-local/mechanicals/mech_property_pages.rds")
+demo2<-readRDS("Documents/qt-local/mechanicals/mech_property_pages.rds")
 pueb_parcels<-readRDS('Documents/dbc/qts_data/pueblo_parcels.rds')
-
+library(dplyr)
 parcals<-left_join(pueb_parcels,demo2 %>% mutate(PAR_NUM=as.numeric(PAR_NUM))) %>% left_join(.,ht1b %>% mutate(PAR_NUM=as.numeric(PAR_NUM)))
+parcals<-filter(parcals,ImprovementsAssessedValue>0)
 parcals<-filter(parcals,is.na(year_built)==F)
-
+head(parcals)
 parcals$heating_forced_air<-stringr::str_detect(parcals$`Detail_Heating/Cooling`,"Forced Air")
 parcals$heating_gravity<-stringr::str_detect(parcals$`Detail_Heating/Cooling`,"Gravity")
 parcals$heating_wall<-stringr::str_detect(parcals$`Detail_Heating/Cooling`,"Wall Furnace")
@@ -43,6 +48,9 @@ parcals$heating_hotwater_baseboard<-stringr::str_detect(parcals$`Detail_Heating/
 parcals$cooling_wall_ac<-stringr::str_detect(parcals$`Detail_Heating/Cooling`,"Wall Air")
 parcals$cooling_evap<-stringr::str_detect(parcals$`Detail_Heating/Cooling`,"Evaporative")
 parcals$central_ac<-stringr::str_detect(parcals$`Detail_Heating/Cooling`,"Refrigerated")
+parcals %>% as.data.frame() %>% select(PAR_NUM,heating_forced_air,cooling_wall_ac,central_ac,heating_electric_baseboard)
+
+#end here class
 
 parcals_c<-sf::st_centroid(parcals)
 lubridate::ymd("1999-01-01")
@@ -56,6 +64,8 @@ ggplot(parcals_c)+geom_sf(aes(colour=central_ac))
 
 
 filter(permit_join, HEPUMP==T,Type=="Mechanical") %>% ggplot()+geom_bar(aes(x=`Detail_Heating/Cooling`))+coord_flip()
+
+
 table(fancy_only$PAR_NUM%in%parcals$PAR_NUM)
 
 
@@ -73,10 +83,9 @@ permit_join$cooling_wall_ac<-stringr::str_detect(permit_join$`Detail_Heating/Coo
 permit_join$cooling_evap<-stringr::str_detect(permit_join$`Detail_Heating/Cooling`,"Evaporative")
 permit_join$central_ac<-stringr::str_detect(permit_join$`Detail_Heating/Cooling`,"Refrigerated")
 permit_join$ev_cool<-stringr::str_detect(permit_join$`Detail_Heating/Cooling`,"Evaporative")
-permit_join$
+
 filter(permit_join, HEPUMP==T,Type=="Mechanical") %>% ggplot()+geom_bar(aes(x=`Detail_Heating/Cooling`))+coord_flip()
 
-%>% ggplot()+geom_bar(aes(x=`Detail_Heating/Cooling`))+coord_flip()+theme_minimal()
 
 
 ggplot(filter(permit_join, HEPUMP==T,Type=="Mechanical"))+geom_bar(data=permit_join,aes(x=`Detail_Heating/Cooling`))+geom_bar(aes(x=`Detail_Heating/Cooling`),fill="dark red")+coord_flip()+theme_minimal()

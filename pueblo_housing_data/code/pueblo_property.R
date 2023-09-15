@@ -6,10 +6,11 @@ parlist<-rbind(readRDS('Documents/dbc/qts_data/pueblo_parcels.rds') %>% as.data.
 
 remDr <- remoteDriver(remoteServerAddr = "localhost",port = 4444L,browserName = "firefox")
 remDr$open()
+
 Sys.sleep(10)
-for(i in 10238:nrow(parlist)){
+for(i in 13163:nrow(parlist)){
   remDr$navigate(paste0("https://property.spatialest.com/co/pueblo/#/property/",parlist$PAR_NUM[i],"/print"))
-  Sys.sleep(5)
+  Sys.sleep(7)
   rawd = remDr$getPageSource()[[1]]
   rawd %>% read_html() %>% xml2::write_html(paste0("Documents/qt-local/property_pages/",parlist$PAR_NUM[i],".html"))
 }
