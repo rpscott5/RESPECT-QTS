@@ -1,5 +1,5 @@
 library(rvest)
-r
+
 r1<-rvest::read_html("https://www.denvergov.org/AccelaCitizenAccess/Cap/CapHome.aspx?module=Development&TabName=Home")
 r1 %>% html_form()
 https://www.denvergov.org/AccelaCitizenAccess/Report/ShowReport.aspx?module=Development&reportID=380&reportType=LINK_REPORT_LIST

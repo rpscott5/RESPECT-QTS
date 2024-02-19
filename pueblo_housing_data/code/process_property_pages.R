@@ -1,8 +1,7 @@
-
+pueb_parcels$PAR_NUM%in%as.numeric(list.files("Documents/qt-local/property_pages/") %>% gsub("\\.html","",.)) %>% table()
 
 p1<-rvest::read_html("https://property.spatialest.com/co/pueblo/#/property/2631000003")
 p1 %>% html_node(.,css=".img-fluid")
-?html_element
 parlist<-rbind(readRDS('Documents/dbc/qts_data/pueblo_parcels.rds') %>% as.data.frame() %>% dplyr::select(PAR_NUM),readRDS('Documents/dbc/qts_data/pueblo_parcels_2.rds') %>% as.data.frame %>% dplyr::select(PAR_NUM)) %>% unique()
 
 remDr <- remoteDriver(remoteServerAddr = "localhost",port = 4444L,browserName = "firefox")

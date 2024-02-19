@@ -236,15 +236,17 @@ fframe$mechp<-puebr4$mech.permit
 
 selectingcases<-ggplot(fframe)+geom_histogram(aes(x=log(fits),fill=as.factor(mechp),group=mechp))+facet_wrap(~mechp,scale="free_y",ncol=1)+theme_minimal()+geom_rect(aes(xmin=-3,xmax=-1,ymin=0,ymax=100,alpha=mechp),fill=NA,colour="black",lty=2)+geom_rect(aes(xmin=-8,xmax=-6,ymin=0,ymax=100,alpha=mechp),fill=NA,colour="black",lty=2)+scale_fill_viridis_d("Mechanical Permit")+theme(legend.position=c(.8,.8))+xlab("observation predicted probability of mechanical permit (based on model)")+geom_text(aes(x=-7,y=200,label=ifelse(mechp==1,"grid=selection for interviews","")))+scale_alpha_identity()+ylab("observations")
 
-
-
+head(lsl)
 probmodel<-m1$summary.fixed  %>% mutate(id=rownames(m1$summary.fixed)) %>% mutate(id=forcats::fct_recode(id,"house, hispanic owner, prob"="scale(prob_hispanic)","house, sqft,ln"="scale(log(as.numeric(SquareFootage)))","house, assessor value"="scale(log(as.numeric(ActualValue)))","house, sold 2022"="sale22TRUE","house, poor condition"="lowfairconditionTRUE","house, sold last pre-2012"="lastsalepre2012TRUE","block group, housing cost burdened"="HCB","house, evaporative cooler"="evapcooler","house, electric baseboard"="ebaseboard","house, central air"="centralair","block group, less than hs education"="Pr_____")) %>% filter(id!="newbuildTRUE") %>% ggplot()+geom_hline(aes(yintercept=0),lty=2)+geom_pointrange(aes(x=id,y=mean,ymin=`0.025quant`,ymax=`0.975quant`))+coord_flip()+theme_minimal()+ylab("95% fixed effect credible interval (DV=Mechanical Permit in 2022)")+xlab("variable")
 cowplot::plot_grid(probmodel,selectingcases,ncol=1)
 puebr4 %>% nrow()
 e?fct_recode
 lowprobabilityhomes<-puebr4[which(puebr4$mech.permit==1),] %>% .[sort(fits[which(puebr4$mech.permit==1)],index.return=T)$ix[1:50],] %>% select(ASSESSOR_PARID, Grantees,YearBuilt,id)
 highprobabilityhomes<-puebr4[which(puebr4$mech.permit==1),] %>% .[sort(fits[which(puebr4$mech.permit==1)],index.return=T,decreasing=T)$ix[1:50],]  %>% select(ASSESSOR_PARID, Grantees,YearBuilt,id)
-
+INLA::inla.doc("binomial")
+INLA::inla.doc("iid")
+INLA::inla.doc("z")
+?scale
 lowprobpermits<-filter(puebp2, ASSESSOR_PARID%in%lowprobabilityhomes$ASSESSOR_PARID)
 highprobpermits<-filter(puebp2, ASSESSOR_PARID%in%highprobabilityhomes$ASSESSOR_PARID)
 rbind(lowprobpermits) %>% as.data.frame() %>% select(Permit_No,Street, Workclass,Owner,Contractor,Phone,cleanadd, ASSESSOR_PARID) %>% write.csv("Documents/qt-local/low_probability_addresses_test.csv")
