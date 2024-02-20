@@ -7,7 +7,7 @@ library(rvest)
 
 permit1<-read.csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vQvD__E0zyFKQJoIRlwsRlDtZzRpTA-eupD4jPyAWLrLIxz002jT3tCguh8CjejFLkzPtOPlWbwS7PY/pub?gid=1505581905&single=true&output=csv")
 permit1<-filter(permit1,Stat.Code%in%c(310,313))
-permit1<-filter(permit1,Permit..%in% gsub(".txt","",list.files("Documents/qt-local/denmet/Denver/permit_links"))==F) %>% .[-c(1:9),] 
+permit1<-filter(permit1,Permit..%in% gsub(".txt","",list.files("Documents/qt-local/denmet/Denver/permit_links"))==F) %>% .[-c(1:11),] 
 
 remDr <- remoteDriver(remoteServerAddr = "localhost",port = 4444L,browserName = "firefox")
 remDr$open()
