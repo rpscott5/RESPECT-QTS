@@ -5,7 +5,7 @@ library(RSelenium)
 library(httr)
 library(rvest)
 
-for(k in 13:100){
+for(k in 201:300){
   try({
     gc()
 system("docker restart bcea2f1f20d4")
@@ -46,7 +46,7 @@ downloadpermit<-function(permitnumber){
   Sys.sleep(1)
 }
 
-for(i in 2:length(permit1$Permit..)) {downloadpermit(permit1$Permit..[i])
+for(i in 1:length(permit1$Permit..)) {downloadpermit(permit1$Permit..[i])
   cat(i)}
 
 remDr$close()

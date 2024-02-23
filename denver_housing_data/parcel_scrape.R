@@ -1,13 +1,28 @@
+
+library(plyr)
 library(tidyverse)
 library(rvest)
-parc<-read.csv("Documents/qt-local/DenMet/Denver/parcels.csv")
-parc<-filter(parc,stringr::str_detect(D_CLASS_CN,"SFR|RESIDENTIAL\\-ROWHOUSE|RESIDENTIAL\\-DUPLEX|RESIDENTIAL-TRIPLEX"))
+library(dplyr)
 
-for(i in 3865:nrow(parc)){
+#parc<-read.csv("Documents/qt-local/DenMet/Denver/parcels.csv",colClasses="character")
+#parc<-filter(parc,stringr::str_detect(D_CLASS_CN,"SFR|RESIDENTIAL\\-ROWHOUSE|RESIDENTIAL\\-DUPLEX|RESIDENTIAL-TRIPLEX"))
+pwb<-readRDS("Documents/qt-local/denmet/Denver/scratch/denverpermit_working_batch.rds")
+pwb<-dplyr::filter(pwb %>% as.data.frame() %>% select(mech.permit01,SCHEDNUMCHAR),mech.permit01==1) %>% unique()
+
+for(i in 1:nrow(pwb)){
   try({
-phtml<-rvest::read_html(paste0("https://www.denvergov.org/property/realproperty/summary/",parc$SCHEDNUM[i]))
+phtml<-rvest::read_html(paste0("https://www.denvergov.org/property/realproperty/summary/",pwb$SCHEDNUMCHAR[i]))
 Sys.sleep(2)
-phtml %>% rvest::html_table() %>% saveRDS(paste0("Documents/qt-local/denmet/Denver/parcel_details/",parc$SCHEDNUM[i],".rds"))
+phtml %>% rvest::html_table() %>% saveRDS(paste0("Documents/qt-local/denmet/Denver/parcel_details/",pwb$SCHEDNUMCHAR[i],".rds"))
 rm(phtml)
 })
 }
+
+parfiles<-list.files("Documents/qt-local/denmet/Denver/parcel_details/",full.names=T)
+pardets<-parfiles %>% lapply(function(D) {
+  d1<-readRDS(D) 
+  if(length(d1)>1){
+  d1<-d1 %>% .[[2]] 
+  data.frame("style"=d1$X2[1],"year_effective"=d1$X2[3],"rooms"=d1$X2[2],"baths"=d1$X4[2])} else data.frame("style"=NA,"year_effective"=NA,"rooms"=NA,"baths"=NA)}) %>% bind_rows()
+pardets$SCHEDNUMCHAR<-basename(parfiles) %>% gsub(".rds","",.)
+head(pardets)
