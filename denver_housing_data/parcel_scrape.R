@@ -4,10 +4,13 @@ library(tidyverse)
 library(rvest)
 library(dplyr)
 
-#parc<-read.csv("Documents/qt-local/DenMet/Denver/parcels.csv",colClasses="character")
-#parc<-filter(parc,stringr::str_detect(D_CLASS_CN,"SFR|RESIDENTIAL\\-ROWHOUSE|RESIDENTIAL\\-DUPLEX|RESIDENTIAL-TRIPLEX"))
-pwb<-readRDS("Documents/qt-local/denmet/Denver/scratch/denverpermit_working_batch.rds")
-pwb<-dplyr::filter(pwb %>% as.data.frame() %>% select(mech.permit01,SCHEDNUMCHAR),mech.permit01==1) %>% unique()
+parc<-read.csv("Documents/qt-local/DenMet/Denver/parcels.csv",colClasses="character")
+parc<-filter(parc,stringr::str_detect(D_CLASS_CN,"SFR|RESIDENTIAL\\-ROWHOUSE|RESIDENTIAL\\-DUPLEX|RESIDENTIAL-TRIPLEX"))
+#pwb<-readRDS("Documents/qt-local/denmet/Denver/scratch/denverpermit_working_batch.rds")
+pwb<-parc %>% as.data.frame() %>% select(SCHEDNUM) %>% mutate(SCHEDNUMCHAR=as.character(SCHEDNUM)) %>% unique()
+parfiles<-list.files("Documents/qt-local/denmet/Denver/parcel_details/",full.names=F) %>% gsub(".rds","",.)
+pwb<-filter(pwb, SCHEDNUMCHAR%in%parfiles==F)
+
 
 for(i in 1:nrow(pwb)){
   try({
