@@ -6,6 +6,8 @@ recodeCATS2<-function(X){
   lookupt<-c("house, hispanic owner, prob"="prob_hispanic","house, sold in period"="saleinperiod","house, poor condition"="lowfaircondition","house, actual value"="ActualValue","house, Square Footage"="SquareFootage","house, sold last pre-2012"="lastsalepre2012","block group, housing cost burdened"="HCB","house, evaporative cooler"="evapcooler","house, electric baseboard"="ebaseboard","house, central air"="centralair","block group, less than hs education"="Pr_____","house, built in period"="newbuild","google rating missing"="norating","google rating"="rating.joined","prob. hispanic, ln"="hisp","total installs, ln"="Freq","government/non-profit"="GovNGO","house, corporate owner"="institional","block group, people of color (percent)"="POC")
   X %>% dplyr::rename(any_of(lookupt))}
 
+unique(puebr5$ASSESSOR_PARID) %>% length()
+unique(puebr5$placeidinla) %>% length()
 
 puebr4<-readRDS("/Users/rpscott/Documents/GitHub/RESPECT-QTS/pueblo_housing_data/processed_data/full_s_2018.version3.rds")
 puebr5<-readRDS("/Users/rpscott/Documents/GitHub/RESPECT-QTS/pueblo_housing_data/processed_data/permit_s_2018.version3.rds")

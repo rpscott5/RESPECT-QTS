@@ -4,16 +4,15 @@ library(tidyverse)
 library(RSelenium)
 library(httr)
 library(rvest)
-
-for(k in 1:1000){
+for(k in 1001:2000){
   try({
     gc()
+    
 system("docker restart bcea2f1f20d4")
     Sys.sleep(60)
 permit1<-read.csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vQvD__E0zyFKQJoIRlwsRlDtZzRpTA-eupD4jPyAWLrLIxz002jT3tCguh8CjejFLkzPtOPlWbwS7PY/pub?gid=1505581905&single=true&output=csv")
-#permit1<-filter(permit1,Stat.Code%in%c(310,313))
-permit1<-filter(permit1,Permit..%in% gsub(".txt","",list.files("Documents/qt-local/denmet/Denver/permit_links"))==F) %>% .[,-c(1:k)] 
-
+permit1<-filter(permit1,Permit..%in% gsub(".txt","",list.files("Documents/qt-local/denmet/Denver/permit_links"))==F) 
+permit1<-filter(permit1,Valuation %>% gsub("\\$|\\,","",.) %>% as.numeric()>5000)
 remDr <- remoteDriver(remoteServerAddr = "localhost",port = 4444L,browserName = "firefox")
 remDr$open()
 remDr$navigate("https://aca-prod.accela.com/DENVER/Default.aspx")
@@ -46,7 +45,7 @@ downloadpermit<-function(permitnumber){
   Sys.sleep(1)
 }
 
-for(i in length(permit1$Permit..):1) {downloadpermit(permit1$Permit..[i])
+for(i in k:length(permit1$Permit..)) {downloadpermit(permit1$Permit..[i])
   cat(i)}
 
 remDr$close()

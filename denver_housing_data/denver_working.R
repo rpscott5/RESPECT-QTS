@@ -1,5 +1,6 @@
 library(rvest)
 library(tidyverse)
+library(sf)
 parc<-read.csv("Documents/qt-local/DenMet/Denver/parcels.csv")
 
 
@@ -13,7 +14,7 @@ parcels22<-sf::st_read("Documents/qt-local/DenMet/Denver/parcelseries/2022parcel
 parcels21<-sf::st_read("Documents/qt-local/DenMet/Denver/parcelseries/2021parcels/parcels.shp")%>% select(SCHEDNUM,OWNER_NAME,SALE_MONTH,SALE_YEAR,SALE_PRICE,APPRAISE_1,RES_ABOVE_,ZONE_10)
 parcels20<-sf::st_read("Documents/qt-local/DenMet/Denver/parcelseries/2020parcels/parcels.shp")
 parcels20<-parcels20 %>% mutate(APPRAISE_1=TOTAL_VALU,RES_ABOVE_=IMP_AREA,ZONE_10=ACT_ZONE) %>% select(SCHEDNUM,OWNER_NAME,SALE_MONTH,SALE_YEAR,SALE_PRICE,TOTAL_VALU,RES_ABOVE_,ZONE_10) 
-parcels20<-parcels20 %>% rename(APPRAISE_1=TOTAL_VALU)
+parcels20<-parcels20 %>% dplyr::rename(APPRAISE_1=TOTAL_VALU)
 
 parcels23$PAR_YEAR<-2023
 parcels22$PAR_YEAR<-2022
@@ -39,7 +40,8 @@ rm(parcels22)
 rm(parcels21)
 rm(parcels20)
 head(allparcels)
-allparcels %>% filter(SCHEDNUM=="0515119013000")
+
+
 allnames<-allparcels %>% select(SCHEDNUM,OWNER_NAME,geometry) %>% unique()
 allnames$OWNER_LAST<-allnames$OWNER_NAME %>% stringr::str_split_fixed(.,",",2) %>% .[,1]
 allnames$OWNER_FIRST<-allnames$OWNER_NAME %>% stringr::str_split_fixed(.,",",2) %>% .[,2]
@@ -53,7 +55,7 @@ racedata<-racedata %>% select(GEOID20,P0030001,P0030003,COUNTY) %>% mutate("whit
 ethdata<-ethdata %>% left_join(.,racedata %>% as.data.frame() %>% select(GEOID20,whiterate,P0030001,P0030003))
 allnames<-allnames %>% sf::st_sf()
 ethdata<-ethdata %>% sf::st_transform(sf::st_crs(allnames))
-?sf::st_intersects
+
 allnames_i<-sf::st_intersects(allnames,ethdata)
 allnames_i1<-sapply(allnames_i,function(X) X[1])
 allnames<-cbind(allnames,ethdata[allnames_i1,] %>% as.data.frame() %>% select(-geometry))
@@ -86,9 +88,6 @@ buildingadds$firstaddress[which(stringr::str_extract(buildingadds$firstaddress,"
 adds$firstaddress[which(stringr::str_extract(adds$firstaddress," 0[1-9]$")==stringr::str_extract(adds$firstaddress," 0[1-9]$"))]<-stringr::str_replace(adds$firstaddress[which(stringr::str_extract(adds$firstaddress," 0[1-9]$")==stringr::str_extract(adds$firstaddress," 0[1-9]$"))],"0[1-9]$",as.character(adds$firstaddress[which(stringr::str_extract(adds$firstaddress," 0[1-9]$")==stringr::str_extract(adds$firstaddress," 0[1-9]$"))] %>% sapply(.,function(X) as.numeric(stringr::str_extract(X," 0[1-9]$")))))
 
 
-table(permit1$firstaddress %in% adds$firstaddress)
-
-permit1$firstaddress[which(c(permit1$firstaddress %in% adds$firstaddress)==F)] %>% unique() %>% sort()
 
 permit.limited<-permit1 %>% select(Permit..,firstaddress)
 permit.limited<-left_join(permit.limited,adds)
@@ -106,6 +105,7 @@ permit.limited %>% head()
 
 permit.limited<-permit.limited %>% select(Permit..,SCHEDNUM)
 parc<-parc %>% select(SCHEDNUM,D_CLASS_CN,PROP_CLASS,D_CLASS,ZONE_ID,RES_ORIG_YEAR_BUILT,RES_ABOVE_GRADE_AREA)
+
 library(sf)
 allparcels<-left_join(allparcels %>% mutate(SCHEDNUMCHAR=SCHEDNUM,SCHEDNUM=as.numeric(SCHEDNUM)),parc)
 
@@ -132,6 +132,9 @@ allparcels$Stat.Code %>% table()
 #316 gas piping
 table(allparcels$Stat.Code)
 
+saveRDS(allparcels,"Documents/qt-local/denmet/Denver/scratch/denverpermit_working_batch.rds")
+
+
 cooling<-filter(allparcels,Stat.Code==310)
 heating<-filter(allparcels,Stat.Code==313)
 
@@ -152,6 +155,9 @@ filter(heatcool,Date.Issued>mdy("11/01/22"), Date.Issued<mdy("2/28/23")) %>% fil
 
 head(heatcool)
 table(heatcool$Contractor.s.Name) %>% sort()
+
+
+
 
 
 
@@ -176,14 +182,16 @@ head(heatcool)
 
 allparcels %>% filter(Stat.Code==317) %>% select(Permit..) %>% .[1,] %>% as.character()
 blocksum<-allparcels %>% group_by(GEOID20) %>% summarise(permitsum=sum(mech.permit01,na.omit=T))
-ifelse(Stat.Code)
 blocksum<-left_join(ethdata,blocksum)
 #blocksum<-blocksum %>% select(GEOID20,P0040001) %>% unique() %>% left_join(.,blocksum)
 blocksum$permitsum<-ifelse(is.na(blocksum$permitsum),0,blocksum$permitsum)
 ggplot(blocksum %>% filter(P0040001>0))+geom_sf(aes(fill=log(permitsum/c(P0040001+1)),colour=log(permitsum/c(P0040001+1))))+scale_fill_viridis_c()+scale_colour_viridis_c()+theme_minimal()
 
 
-parcm<-merge(parc,permit.limited %>% as.data.frame() %>% select(Permit..,PIN,SCHEDNUM,LAND_VALUE,IMPROVEMENT_VALUE,IMPROVEMENTS,TOTAL_VALUE,LAND,ACT_ZONE,IMP_AREA,CCYRBLT) %>% mutate(SCHEDNUM=as.numeric(SCHEDNUM)))
+
+permit.limited %>% head()
+
+parcm<-merge(parc,permit.limited %>% as.data.frame() %>% select(Permit..,SCHEDNUM,IMPROVEMENT_VALUE,IMPROVEMENTS,TOTAL_VALUE,LAND,ACT_ZONE,IMP_AREA,CCYRBLT) %>% mutate(SCHEDNUM=as.numeric(SCHEDNUM)))
 parcm<-parcm[,-c(2:30,32,33,35:47,67:70)]
 parcm<-left_join(allparcels %>% mutate(SCHEDNUM=as.numeric(SCHEDNUM)),parcm)
 
