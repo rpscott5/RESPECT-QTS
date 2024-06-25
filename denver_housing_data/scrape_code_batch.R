@@ -52,3 +52,5 @@ remDr$close()
 
 })
 }
+
+head(allparcels2)

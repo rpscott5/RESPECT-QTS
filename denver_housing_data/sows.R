@@ -116,33 +116,6 @@ allparcels$perc.bach<-c(allparcels$BACHELORS_OR_HIGHER_EDU/allparcels$TTL_POPULA
 allpd<-allparcels %>% as.data.frame() %>% select(D_CLASS_CN,CODE_YEAR,PAR_YEAR,RES_ABOVE_GRADE_AREA,RES_ORIG_YEAR_BUILT,APPRAISE_1,hisprate,mech.permit01,prob_hispanic,perc.bach,AGE65PLUS,AGE_LESS_5,TTL_POPULATION_ALL,MED_HH_INCOME,perc.less.5,perc.over.65,perc.hisp,SCHEDNUMCHAR)
 
 
-basicmodel<-lm(as.numeric(mech.permit01)~as.factor(D_CLASS_CN)+factor(CODE_YEAR)+PAR_YEAR+as.numeric(RES_ABOVE_GRADE_AREA)+RES_ORIG_YEAR_BUILT+APPRAISE_1+MED_HH_INCOME+perc.less.5+perc.hisp+perc.over.65+prob_hispanic+perc.bach+hi,data=allpd)
-
-basicmodel2<-glm(as.numeric(mech.permit01)~
-                   as.factor(D_CLASS_CN)+
-                   factor(CODE_YEAR)+
-                   PAR_YEAR+
-                   as.numeric(RES_ABOVE_GRADE_AREA)+
-                   RES_ORIG_YEAR_BUILT+
-                   APPRAISE_1+
-                   MED_HH_INCOME+
-                   perc.less.5+
-                   perc.hisp+
-                   perc.over.65+
-                   prob_hispanic+
-                   perc.bach+
-                   hi,
-                 data=allpd,
-                 family="gaussian")
-head(allpd)
-
-
-summary(basicmodel2)
-install.packages("pROC")
-myroc <- pROC::roc(allpd$mech.permit01,predict(basicmodel2, allpd, type = "response")) 
-
-plot(myroc)
-
 #buildfoot<-esri2sf::esri2sf("https://services1.arcgis.com/zdB7qR0BtYrg0Xpl/ArcGIS/rest/services/Final_Draft_Building_Footprint3/FeatureServer/1")
 #saveRDS(buildfoot,"Documents/qt-local/denmet/Denver/controldata/buildingfootprint.rds")
 buildfoot<-readRDS("Documents/qt-local/denmet/Denver/controldata/buildingfootprint.rds")
@@ -160,21 +133,13 @@ allparcels$heatanomoly<-hi
 str<-read.csv("Documents/qt-local/denmet/Denver/controldata/City_of_Denver_Short_Term_Rental_Licenses_20240305.csv")
 allparcels$shortermrental<-allparcels$SCHEDNUM%in%str$Parcel.Number
 
-
+s
 
 #buslis<-read.csv("Documents/qt-local/denmet/Denver/controldata/Active_Business_Licenses_Denver_20240305.csv")
 #buslis<-filter(buslis,LICENSE_TYPE%in%"Residential Rental Property")
-head(buslis)
 
-library(INLA)
 allparcels$Class[is.na(allparcels$Class)]<-"no permit"
 
-
-
-sows %>% head()
-
-
-allparcels_sows<-left_join(allparcels,sows)
 
 sows %>% saveRDS("Documents/GitHub/RESPECT-QTS/denver_housing_data/processed_data/permits_scopes_of_work_20_23.rds")
 
