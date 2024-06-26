@@ -1018,3 +1018,5 @@ t11$ID[stringr::str_which(t11$ID,"1")]<-"all program partners"
 t11 %>% ggplot()+geom_hline(aes(yintercept=0),lty=2)+geom_pointrange(aes(x=ID,y=mean,ymin=`0.025quant`,ymax=`0.975quant`))+coord_flip()+facet_wrap(~model)+theme_bw()+xlab("subgroup")+ylab("credible interval and mean")
  
 mcool$summary$fix
+
+cooling %>% saveRDS("coolingworking.rds")
