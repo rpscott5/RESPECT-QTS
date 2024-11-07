@@ -4,7 +4,16 @@ session <- selenider_session(
   "chromote",
   timeout = 10
 )
+fcfiles<-list.files("Documents/qt-local/fortcollins/fc_record_files/",full.names=T)
+fcfiles<-lapply(fcfiles,read.csv)
+fcfiles<-bind_rows(fcfiles)
+fcfiles<-unique(fcfiles)
+fcfiles<-filter(fcfiles,year>=c(2020))
 fcfiles$year<-fcfiles$Date.Submitted %>% lubridate::mdy() %>% year()
+fcfiles<-filter(fcfiles,Record.Type%in%c("Residential Mechanical","Residential Electrical","Residential Water Heater","Residential Fireplace-Wood Burning Stove","Electric Service Change"))
+fcfiles<-filter(fcfiles,Record.Type%in%c("Residential Mechanical","Residential Electrical"))
+filter(fcfiles, Record.Type=="Electric Service Change") %>% head()
+
 fcfiles2<-filter(fcfiles,year>=c(2020))
 fcfiles2<-filter(fcfiles2, Record..%in%c(list.files("Documents/qt-local/fortcollins/permit_links/") %>% basename() %>% gsub(".txt","",.))==F)
 for (i in 1:nrow(fcfiles2)){

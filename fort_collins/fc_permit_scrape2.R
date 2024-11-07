@@ -19,18 +19,55 @@ for(k in 1:2000){
     fcfiles<-bind_rows(fcfiles)
     fcfiles<-unique(fcfiles)
     fcfiles<-filter(fcfiles,Record.Type%in%c("Residential Mechanical","Residential Electrical","Residential Water Heater","Residential Fireplace-Wood Burning Stove","Electric Service Change"))
-    fcfiles<-filter(fcfiles,Record.Type%in%c("Residential Mechanical","Residential Electrical","Residential Water Heater","Residential Fireplace-Wood Burning Stove","Electric Service Change"))
     perm.link<-list.files("Documents/qt-local/fortcollins/permit_links/",full.names=T)
     file1<-sapply(perm.link,readLines)
     file2<-perm.link[which(file1 %>% stringr::str_detect(.,"https")==F)]
     fcfiles<-filter(fcfiles, Record..%in% gsub(".html","",basename(perm.link))==F)
     fcfiles<-filter(fcfiles, Record.Type=="Residential Mechanical",lubridate::year(lubridate::mdy(Date.Submitted))>2017)
-    update.packages("rvest")
-    library(rvest)
+    rm(sess)
+    gc()
     sess <- read_html_live("https://accela-aca.fcgov.com/CitizenAccess/Cap/CapHome.aspx?module=Building&TabName=HOME")
+    sess$initialize("https://accela-aca.fcgov.com/CitizenAccess/Cap/CapHome.aspx?module=Building&TabName=HOME")
     sess$view()
-    rows <- sess %>% html_elements(".TopColleges2023_tableRow__BYOSU")
-    rows %>% html_element(".TopColleges2023_organizationName__J1lEV") %>% html_text()
+    sess$click("#ctl00_PlaceHolderMain_generalSearchForm_txtGSPermitNumber")
+    sess$press(css="#ctl00_PlaceHolderMain_generalSearchForm_txtGSPermitNumber",key_code=c("Backspace"))
+    sess$press(css="#ctl00_PlaceHolderMain_generalSearchForm_txtGSPermitNumber",key_code=c("Backspace"))
+    sess$press(css="#ctl00_PlaceHolderMain_generalSearchForm_txtGSPermitNumber",key_code=c("Backspace"))
+    sess$press(css="#ctl00_PlaceHolderMain_generalSearchForm_txtGSPermitNumber",key_code=c("Backspace"))
+    sess$press(css="#ctl00_PlaceHolderMain_generalSearchForm_txtGSPermitNumber",key_code=c("Backspace"))
+    sess$press(css="#ctl00_PlaceHolderMain_generalSearchForm_txtGSPermitNumber",key_code=c("Backspace"))
+    
+    
+    
+    sess$type(text=fcfiles$Record..[1],css="#ctl00_PlaceHolderMain_generalSearchForm_txtGSPermitNumber")
+    rvest:::live
+    sess$press(css="#ctl00_PlaceHolderMain_generalSearchForm_txtGSPermitNumber",key_code=c("Enter"))
+    
+    sess$scroll_into_view(css="#ctl00_PlaceHolderMain_btnNewSearch span")
+    sess$click(css="#ctl00_PlaceHolderMain_btnNewSearch span")
+    
+    sess$html_elements(css="a")
+    sess$press(css=NULL,key_code = "KeyA",modifier="Alt")
+    sess$click('#imgMoreDetail')
+    sess$click('#imgAddtional')
+    sess$click('#imgASI')
+    sess$click('#imgRc')
+    sess$click('#imgParcel')
+    sess$html_elements()
+    sessform<-sess$html_elements('#ctl00_PlaceHolderMain_PermitDetailList1_updatePanel :nth-child(1)')
+
+        sess %>% xml2::url_absolute()
+    sess$initialize()
+    sessform %>% xml2::write_html("Downloads/templines.html")
+    xml2::url_absolute(
+    sess$print()
+      xml2::write_html("Downloads/templines.html")
+    sess$html_elements('#imgMoreDetail')
+    listels$click()
+    sess$click(css="//*[(@id = 'imgMoreDetail')]")
+    
+    sess$html_elements('#imgMoreDetail')
+
     rows %>% html_element(".grant-aid") %>% html_text()
     
     remDr <- remoteDriver(remoteServerAddr = "localhost",port = 4444L,browserName = "firefox")
