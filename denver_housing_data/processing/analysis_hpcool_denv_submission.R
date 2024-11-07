@@ -1,6 +1,7 @@
 library(plyr)
 library(dplyr)
 library(tidyverse)
+
 sows<-readRDS("Documents/GitHub/RESPECT-QTS/denver_housing_data/processed_data/permits_scopes_of_work_20_23.rds")
 
 allparcels<-readRDS("Documents/GitHub/RESPECT-QTS/denver_housing_data/processed_data/allparcels_20_23.rds")
@@ -9,7 +10,9 @@ sows$PAR_YEAR<-as.numeric(sows$Permit.. %>% stringr::str_extract(.,"^[0-9]+"))
 
 sows<-sows %>% select(PAR_YEAR,SCHEDNUM,ac,ac_efficiency,ac_size,furnace,furnace_efficiency,furnace_size,heatpump.central,heatpump.mini,Valuation,Contractor.s.Name,inspector,sow) %>% unique() 
  
- 
+
+tops<-read.csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vT5w_SsHqNpDlkzD2CLaEkB0cejW0M0iurmPKQT5Benw98WTrQn9hCeSU8HvA4KLDijQAbZI2MZyDAV/pub?gid=1645890024&single=true&output=csv")
+
 sows<-sows %>% group_by(PAR_YEAR,SCHEDNUM) %>% 
   reframe(
     ac=as.numeric(TRUE%in%ac),
@@ -43,11 +46,11 @@ allparcels2<-allparcels2 %>% mutate(surname=OWNER_LAST,state="CO",county=substr(
 
 for_race<-allparcels2 %>% as.data.frame() %>% select(surname,state,county,tract,block) 
 
-
 #cdatawru<-get_census_data(key=ckey,states="CO",year=2020,age=F,sex=F,census.geo="block",county.list=c("CO"=c("031")),retry=10)
 #cdatawru %>% saveRDS(.,"Documents/GitHub/RESPECT-QTS/denver_housing_data/scratch/cdatawru.rds")
 
 cdatawru<-readRDS("Documents/GitHub/RESPECT-QTS/denver_housing_data/scratch/cdatawru.rds")
+
 library(wru)
 prediction_race<-wru::predict_race(voter.file=for_race,census.surname=T,census.data=cdatawru,census.geo="block",age=F,impute.missing=T,use.counties=T,skip_bad_geos=T)
 allparcels2<-left_join(allparcels2,unique(prediction_race))
@@ -113,21 +116,23 @@ permitted<-left_join(permitted,denied)
 
 
 permitted$failed_inspection<-as.numeric(permitted$failed_inspection)
-library(INLA)
+
 permitted$sowschar<-nchar(permitted$sow)
 
-
+cooling$RES_ORIG_YEAR_BUILT %>% min(na.rm=T)
 
 permitted %>% filter(.,heatpump.central==1) %>% xtabs(~xcelpartner.hp.2024+PAR_YEAR,data=.) %>% as.data.frame() %>% ggplot()+geom_point(aes(x=PAR_YEAR,y=Freq,shape=xcelpartner.hp.2024,group="ac"))
 
 #uptake of xcel energy partners
 permitted %>% filter(.,ac==1) %>% xtabs(~xcelpartner.hp.2024+PAR_YEAR,data=.) %>% as.data.frame() %>% ggplot()+geom_point(aes(x=PAR_YEAR,y=Freq,shape=xcelpartner.hp.2024,group="ac"))
 
+cooling %>% mutate(.,partnerlevel=topstotal+xcelpartner.hp.2024) %>% xtabs(~partnerlevel+PAR_YEAR,data=.) %>% as.data.frame() %>% ggplot()+geom_point(aes(x=PAR_YEAR,y=Freq,shape=partnerlevel,group="ac"))+facet
+
 permitted$geo<-stringr::str_detect(tolower(permitted$sow),"geothermal|ground source|gshp")
-table(permitted$geo)
+
 cooling<-filter(permitted, ac==1|heatpump.central==1)
 stringr::str_which(tolower(cooling$sow),"seer2")
-table(cooling$ac_efficiency)
+
 #cooling$ac_efficiency<-floor(cooling$ac_efficiency) 
 cooling$ac_efficiency[which(cooling$ac_efficiency==13.4)]<-14
 cooling$ac_efficiency[which(cooling$ac_efficiency==13.8)]<-14.5
@@ -141,87 +146,22 @@ cooling$ac_efficiency[which(cooling$ac_efficiency==18.1)]<-19
 cooling$ac_efficiency<-floor(cooling$ac_efficiency)
 cooling$ac_efficiency[which(cooling$ac_efficiency<13)]<-NA
 
+
+
 cooling$topstotal<-0
 cooling$topstotal[which(cooling$top2020==1 & cooling$PAR_YEAR%in%c(2020,2021)==1)]<-1
 cooling$topstotal[which(cooling$top2022==1 & cooling$PAR_YEAR==2022)]<-1
 cooling$topstotal[which(cooling$top2023==1 & cooling$PAR_YEAR==2023)]<-1
+
+
+
 library(INLA)
 pc.prec_zib = list(prec = list(prior = "pc.prec", param = c(5, 0.01)))
 pc.prec_bin = list(prec = list(prior = "pc.prec", param = c(.5, 0.01)))
-
-hist(cooling$ac_efficiency)
-permitted$ac %>% hist()
-head(allparcels2)
-
-library(INLA)
-mechmodel<-inla(mech.permit01~scale(log(APPRAISE_1+1))+
-              scale(pred.bla)+
-            scale(pred.his)+
-             f(ZONE_ID,model="iid",hyper=pc.prec_bin)+
-                f(tract, model="iid",hyper=pc.prec_bin)+
-                f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
-                f(D_CLASS,model="iid",hyper=pc.prec_bin)+
-                f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_bin)+
-                +scale(RES_ABOVE_)+
-              scale(heatanomoly),
-              data=allparcels2,
-              family="gaussian", 
-              control.predictor=list(link= 1))
-
-
-acmodel<-inla(ac~scale(log(APPRAISE_1+1))+
-              scale(pred.bla)+
-              scale(pred.his)+
-              f(ZONE_ID,model="iid",hyper=pc.prec_bin)+
-              f(tract, model="iid",hyper=pc.prec_bin)+
-              f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
-              f(D_CLASS,model="iid",hyper=pc.prec_bin)+
-              f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_bin)+
-              +scale(RES_ABOVE_)*scale(Valuation)+
-              scale(heatanomoly)+
-              scale(perc.over.65)+
-              heatpump.central+
-              f(Contractor.s.Name,model="iid",hyper=pc.prec_zib)+
-              f(week, model="rw1",cyclic=T,hyper=pc.prec_zib),
-            data=permitted,
-            family="binomial", 
-            control.predictor=list(link= 1))
+pc.prec_gaus = list(prec = list(prior = "pc.prec", param = c(5, 0.01)))
 
 
 
-
-table(permitted$heatpump.mini)
-
-furnacemodel<-inla(furnace~scale(log(APPRAISE_1+1))+
-                scale(pred.bla)+
-                scale(pred.his)+
-                f(ZONE_ID,model="iid",hyper=pc.prec_bin)+
-                f(tract, model="iid",hyper=pc.prec_bin)+
-                f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
-                f(D_CLASS,model="iid",hyper=pc.prec_bin)+
-                f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_bin)+
-                +scale(RES_ABOVE_)*scale(Valuation)+
-                scale(heatanomoly)+
-                scale(perc.over.65)+
-                heatpump.central+
-                f(Contractor.s.Name,model="iid",hyper=pc.prec_zib)+
-                f(week, model="rw1",cyclic=T,hyper=pc.prec_zib),
-              data=permitted,
-              family="binomial", 
-              control.predictor=list(link= 1))
-
-
-m4$summary.random$week %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()+xlab("year")+ylab("log odds of AC permit")
-
-rbind(acmodel$summary.random$week %>% mutate(model="air conditioning ln odds"),m3$summary.random$week %>% mutate(model="central heat pump")) %>% rbind(furnacemodel$summary.random$week %>% mutate(model="furnace ln odds")) %>% rbind(m2$summary.random$week %>% mutate(model="minimum efficiency furnace, ln odds")) %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`,colour=model))+geom_hline(aes(yintercept=0))+theme_minimal()+xlab("week of year")+ggthemes::scale_colour_tableau()+theme(legend.position=c(.2,.87),legend.background = element_rect(colour="black"))+ylab("95% CI for random effect (random walk order 1)") %>% saveRDS("")
-
-
-acmodel$summary.random$RES_ORIG_YEAR_BUILT %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
-
-acmodel$summary.random$Contractor.s.Name %>% filter(`0.025quant`>0|`0.975quant`<0) %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+coord_flip()+theme_minimal()
-filter(cooling, scale(log(ac_efficiency))>3.5)
-ac_efficiency
-library(INLA)
 cooling$ac_efficiency<-cooling$ac_efficiency-13
 cooling$Contractor.s.Name.copy<-cooling$Contractor.s.Name
 
@@ -238,7 +178,11 @@ cooling<-left_join(cooling,contcount,na_matches="never")
 
 #cooling<-cooling %>% select(-contractortotal)
 cooling$contractortotal
-pc.prec_gaus = list(prec = list(prior = "pc.prec", param = c(5, 0.01)))
+
+cooling$ac_size[which(as.numeric(cooling$ac_size)>8)]<-NA
+cooling$ac_size<-abs(as.numeric(cooling$ac_size))
+
+cooling<-filter(cooling, geo==F)
 
 mcool<-inla(ac_efficiency~1+
               scale(log(APPRAISE_1+1))+
@@ -254,9 +198,9 @@ mcool<-inla(ac_efficiency~1+
               scale(log(contractortotal))+
               scale(MED_HH_INCOME)+
               scale(pred.bla)+
+              scale(perc.over.65)+
               scale(pred.his)+
               as.factor(xcelpartner.hp.2024)+
-              scale(Valuation)+
               f(PAR_YEAR,model="iid",hyper=pc.prec_zib)+
               f(real_inspector,model="iid",hyper=pc.prec_gaus)+
               f(D_CLASS,model="iid",hyper=pc.prec_zib)+
@@ -268,7 +212,6 @@ mcool<-inla(ac_efficiency~1+
             family="nbinomial", 
 control.predictor=list(link= 1))
 
-summary(mcool)
 
 mcost<-inla(log(c(Valuation+1))~1+heatpump.central+
               scale(log(APPRAISE_1+1))+
@@ -277,17 +220,17 @@ mcost<-inla(log(c(Valuation+1))~1+heatpump.central+
               heatpump.central+
               scale(log(sowschar+1))+
               scale(log(contractortotal))+
+              scale(ac_efficiency)+
+              scale(ac_size)+
               f(Class, model="iid",hyper=pc.prec_gaus)+
               furnace+
               multiton+
               duct+
               vent+
-              geo+
               scale(perc.over.65)+
               scale(pred.his)+
               scale(pred.bla)+
               scale(MED_HH_INCOME)+
-              scale(ac_efficiency)+
               as.factor(xcelpartner.hp.2024)+
               f(PAR_YEAR,model="iid",hyper=pc.prec_gaus)+
               f(real_inspector,model="iid",hyper=pc.prec_gaus)+
@@ -300,8 +243,34 @@ mcost<-inla(log(c(Valuation+1))~1+heatpump.central+
             ,control.predictor=list(link= 1),
             family="gaussian")
 
-cooling$RES_ORIG_YEAR_BUILT.copy<-cooling$RES_ORIG_YEAR_BUILT
-cooling$real_inspector.copy<-cooling$real_inspector
+
+msize<-inla(ac_size~1+heatpump.central+
+              scale(log(APPRAISE_1+1))+
+              +scale(log(RES_ABOVE_))+
+              scale(heatanomoly)+
+              heatpump.central+
+              scale(log(sowschar+1))+
+              scale(log(contractortotal))+
+              f(Class, model="iid",hyper=pc.prec_gaus)+
+              furnace+
+              multiton+
+              duct+
+              vent+
+              scale(perc.over.65)+
+              scale(pred.his)+
+              scale(pred.bla)+
+              scale(MED_HH_INCOME)+
+              as.factor(xcelpartner.hp.2024)+
+              f(PAR_YEAR,model="iid",hyper=pc.prec_gaus)+
+              f(real_inspector,model="iid",hyper=pc.prec_gaus)+
+              f(D_CLASS,model="iid",hyper=pc.prec_gaus)+
+              f(Contractor.s.Name,model="iid",hyper=pc.prec_gaus)+
+              f(tract,model="iid",hyper=pc.prec_gaus)+
+              f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_gaus)+
+              f(week, model="rw1",cyclic=T,hyper=pc.prec_gaus),
+            data=filter(cooling, Valuation<=50000),
+            ,control.predictor=list(link= 1),
+            family="gaussian")
 
 mfail<-inla(failed_inspection~heatpump.central+
               scale(log(APPRAISE_1+1))+
@@ -321,7 +290,6 @@ mfail<-inla(failed_inspection~heatpump.central+
               scale(pred.bla)+
               scale(MED_HH_INCOME)+
               as.factor(xcelpartner.hp.2024)+
-              scale(ac_efficiency)+
               f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
               f(real_inspector,model="iid",hyper=pc.prec_bin)+
               f(D_CLASS,model="iid",hyper=pc.prec_bin)+
@@ -333,62 +301,6 @@ mfail<-inla(failed_inspection~heatpump.central+
             family="binomial",
             control.predictor=list(link= 1))
 
-mfail.0<-inla(failed_inspection~heatpump.central+
-              scale(log(APPRAISE_1+1))+
-              +scale(log(RES_ABOVE_))+
-              scale(heatanomoly)+
-              scale(Valuation)+
-              heatpump.central+
-              scale(log(sowschar+1))+
-              f(Class, model="iid",hyper=pc.prec_bin)+
-              furnace+
-              multiton+
-              duct+
-              vent+
-              scale(log(contractortotal))+
-              scale(perc.over.65)+
-              scale(pred.his)+
-              scale(pred.bla)+
-              scale(MED_HH_INCOME)+
-              scale(ac_efficiency)+
-              f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
-              f(real_inspector,model="iid",hyper=pc.prec_bin)+
-              f(D_CLASS,model="iid",hyper=pc.prec_bin)+
-              f(Contractor.s.Name,model="iid",hyper=pc.prec_bin)+
-              f(tract,model="iid",hyper=pc.prec_bin)+
-              f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_bin)+
-              f(week, model="rw1",cyclic=T,hyper=pc.prec_bin),
-            data=filter(cooling, Valuation<=50000),
-            family="binomial",
-            control.predictor=list(link= 1))
-
-
-
-m.cons.choice<-inla(xcelpartner.hp.2024~heatpump.central+
-              scale(log(APPRAISE_1+1))+
-              +scale(log(RES_ABOVE_))+
-              scale(heatanomoly)+
-              scale(Valuation)+
-              heatpump.central+
-              scale(log(sowschar+1))+
-              f(Class, model="iid",hyper=pc.prec_bin)+
-              furnace+
-              multiton+
-              duct+
-              vent+
-              scale(perc.over.65)+
-              scale(pred.his)+
-              scale(pred.bla)+
-              scale(MED_HH_INCOME)+
-              scale(ac_efficiency)+
-              f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
-              f(D_CLASS,model="iid",hyper=pc.prec_bin)+
-              f(tract,model="iid",hyper=pc.prec_bin)+
-              f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_bin)+
-              f(week, model="rw1",cyclic=T,hyper=pc.prec_bin),
-            data=filter(cooling, Valuation<=50000),
-            family="binomial",
-            control.predictor=list(link= 1))
 
 missingef<-inla(as.numeric(is.na(ac_efficiency))~heatpump.central+
               scale(log(APPRAISE_1+1))+
@@ -419,7 +331,6 @@ missingef<-inla(as.numeric(is.na(ac_efficiency))~heatpump.central+
             control.predictor=list(link= 1))
 summary(missingef)
 
-ggplot(mfail.2$summary.random$real_inspector.copy)+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))
 
 varrename_1<-function(X) case_match(X,"(Intercept)"~"Intercept",
                                     "scale(log(contractortotal))" ~ "demographics: contractor permit count, ln",
@@ -432,6 +343,7 @@ varrename_1<-function(X) case_match(X,"(Intercept)"~"Intercept",
                                     "scale(log(RES_ABOVE_))"~"parcel: house area, ln sqft",
                                     "scale(log(APPRAISE_1 + 1))"~"parcel: appraisal value, ln $",
                                     "scale(heatanomoly)"~"parcel: heat island anomoly",
+                                    "scale(ac_size)"~"permit: system size tons",
                                     "heatpump.central"~"permit: heat pump",
                                     "furnace"~"permit: furnace",
                                     "as.factor(xcelpartner.hp.2024)1"~"test: utility Q.I. partner",
@@ -442,48 +354,19 @@ varrename_1<-function(X) case_match(X,"(Intercept)"~"Intercept",
                                     "ductTRUE"~"permit: duct",
                                     "ventTRUE"~"permit: vent",.default=X)
 
-cooling$contractortotal
-rbind(mcool$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="SEER rating"),
-      mcost$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="Permit value"),
-      mfail$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="Failed insp.")) %>% filter(ID!="Intercept") %>% ggplot()+geom_hline(aes(yintercept=0))+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+facet_wrap(~model,scale="free_x")+coord_flip()+theme_bw()+ylab("coefficient value")+theme(text=element_text(size=20))+xlab("fixed effect")
 
 
 
-summary(mcool)
-length(filter(cooling, Valuation<=50000)$failed_inspection)
-length(mfail$summary.fitted.values$mean)
+
 failroc <- pROC::roc(filter(cooling, Valuation<=50000)$failed_inspection,mfail$summary.fitted.values$mean) 
 failro2c <- pROC::roc(filter(cooling, Valuation<=50000)$failed_inspection,mfail.0$summary.fitted.values$mean) 
-
-
-
-ggplot()+geom_hex(aes(x=filter(cooling,Valuation<=50000)$ac_efficiency,y=mcool$summary.fitted.values$mean,alpha=log(..count..)))+geom_abline(aes(intercept=0,slope=1))+theme_minimal()+ylab("fitted seer-13")+xlab("actual seer-13")+scale_fill_viridis_c()
-
-ggplot()+geom_text(aes(x=log(filter(cooling,Valuation<=50000)$ac_efficiency),y=log(mcool$summary.fitted.values$mean),label=1:nrow(mcool$summary.fitted.values)))+geom_abline(aes(intercept=0,slope=1))
-
-
-
-summary(mcool)
-summary(mcost)
-
 
 
 ggplot(mcool$summary.fixed %>% mutate(ID=rownames(.)))+geom_hline(aes(yintercept=0),lty=2)+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+coord_flip()+theme_minimal()
 
 
-ggplot(mcool$summary.random$Contractor.s.Name %>% mutate(ID=rownames(.)))+geom_hline(aes(yintercept=0),lty=2)+geom_pointrange(aes(x=mean,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+coord_flip()+theme_minimal()
-
-mcool$summary.random$Contractor.s.Name %>% ggplot()+geom_pointrange(aes(x=exp(mcool$summary.fixed$mean[1]+mean),y=exp(mcool$summary.fixed$mean[1]+mean),ymax=exp(mcool$summary.fixed$mean[1]+`0.975quant`),ymin=exp(mcool$summary.fixed$mean[1]+`0.025quant`)))+geom_hline(aes(yintercept=exp(mcool$summary.fixed$mean[1])))+coord_flip()+theme_minimal()
 
 cooling$sowschar<-nchar(cooling$sow)
-mcost$summary.fixed
-table(cooling$Contractor.s.Name)
-hist(log(cooling$Valuation))
-
-mcool$summary.random$Contractor.s.Name %>% arrange(-mean) %>% head(10)
-mcool$summary.random$Contractor.s.Name.copy %>% ggplot()+geom_pointrange(aes(x=mean,y=mean,ymin=`0.025quant`,ymax=`0.975quant`))
-
-mcool$summary.random$Contractor.s.Name.copy %>% arrange(mean) %>% head(20)
 
 
 library(INLA)
@@ -491,34 +374,7 @@ library(INLA)
 ggplot()+ylab("fitted permit value")+xlab("ln actual permit value")+geom_hex(aes(x=log(c(filter(cooling,Valuation<=50000)$Valuation+1)),y=mcost$summary.fitted.values$mean,alpha=log(..count..)))+geom_abline(aes(intercept=0,slope=1))+scale_fill_viridis_c()+theme_minimal()
 
 
-ggplot(mcost$summary.fixed %>% mutate(ID=rownames(.)) %>% filter(ID!="(Intercept)"))+
-  geom_hline(aes(yintercept=0))+
-  geom_pointrange(aes(x=ID,
-                      y=mean,
-                      ymin=`0.025quant`,
-                      ymax=`0.975quant`))+
-  coord_flip()+
-  theme_minimal()
 
-ggplot(mcost$summary.fixed %>% mutate(ID=rownames(.)) %>% filter(ID!="(Intercept)"))+geom_hline(aes(yintercept=exp(mcost$summary.fixed$mean[1])))+geom_pointrange(aes(x=ID,y=exp(mean+mcost$summary.fixed$mean[1]),ymax=exp(mcost$summary.fixed$mean[1]+`0.975quant`),ymin=exp(mcost$summary.fixed$mean[1]+`0.025quant`)))+coord_flip()+theme_minimal()
-
-mcost$summary.random$Contractor.s.Name %>% ggplot()+geom_pointrange(aes(x=exp(mcost$summary.fixed$mean[1]+mean),y=exp(mcost$summary.fixed$mean[1]+mean),ymax=exp(mcost$summary.fixed$mean[1]+`0.975quant`),ymin=exp(mcost$summary.fixed$mean[1]+`0.025quant`)))+geom_hline(aes(yintercept=exp(mcost$summary.fixed$mean[1])))+coord_flip()+theme_minimal()
-
-
-mcost$summary.random$inspector %>% ggplot()+geom_pointrange(aes(x=exp(mcost$summary.fixed$mean[1]+mean),y=exp(mcost$summary.fixed$mean[1]+mean),ymax=exp(mcost$summary.fixed$mean[1]+`0.975quant`),ymin=exp(mcost$summary.fixed$mean[1]+`0.025quant`)))+geom_hline(aes(yintercept=exp(mcost$summary.fixed$mean[1])))+coord_flip()+theme_minimal()
-
-
-mcost$summary.random$Contractor.s.Name %>% arrange(-mean) %>% head(10)
-mcost$summary.random$Contractor.s.Name[which.max(mcost$summary.random$Contractor.s.Name$mean),]
-
-filter(cooling,Contractor.s.Name=="APPLEWOOD PLUMBING & HEATING COMPANY")
-filter(cooling,Contractor.s.Name=="HOME SERVICE HEROES INC")$sow
-filter(cooling,Contractor.s.Name=="CLIMATE MECHANICAL SOLUTIONS")
-filter(cooling,Contractor.s.Name=="SENSIBLE ENERGY LLC")
-
-filter(allparcels2, Exempt==0)
-mean(cooling$contractortotal,na.rm=T)
-sd(cooling$contractortotal,na.rm=T)
 
 mcost$summary.random$D_CLASS %>% ggplot()+geom_pointrange(aes(x=mean,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+coord_flip()+theme_minimal()
 
@@ -530,10 +386,10 @@ mcool$summary.random$week %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.9
 mfail$summary.random$week %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
 
 
-
 mcost$summary.random$PAR_YEAR %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
 
 mcost$summary.random$RES_ORIG_YEAR_BUILT %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
+
 mcool$summary.random$RES_ORIG_YEAR_BUILT %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
 
 mcool$summary.random$Contractor.s.Name %>% left_join(.,unique(cooling %>% select(Contractor.s.Name,xcelpartner.hp.2024)) %>% rename(ID=Contractor.s.Name)) %>% filter(`0.025quant`>0|`0.975quant`<0) %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`,colour=as.factor(xcelpartner.hp.2024)))+geom_hline(aes(yintercept=0))+coord_flip()+theme_minimal()+theme(legend.position="top")
@@ -581,136 +437,10 @@ permitted$CODE_YEAR.copy<-permitted$CODE_YEAR
 
 
 
-m2<-inla(noncondense_furnace~scale(log(APPRAISE_1+1))+
-           scale(pred.bla)+
-           scale(pred.his)+
-           f(tract, model="iid",hyper=pc.prec_bin)+
-           f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
-           f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_bin, constr=TRUE)+
-           f(D_CLASS,model="iid",hyper=pc.prec_bin)+
-           scale(RES_ABOVE_)*scale(Valuation)+
-           heatpump.central+
-           shortermrental+
-           as.factor(xcelpartner.hp.2024)+
-           f(Contractor.s.Name,model="iid",hyper=pc.prec_bin)+
-           is.na(inspector)+
-           f(inspector, model="iid",hyper=pc.prec_bin)+
-           f(CODE_YEAR, model="iid", hyper=pc.prec_bin)+
-           f(week, model="rw1",cyclic=T,hyper=pc.prec_bin)+
-           scale(ac_efficiency.inputed)+
-           heatpump.central+
-           ac,
-         data=permitted,
-         family="binomial", 
-         control.predictor=list(link= 1))
-
-summary(m2)
-ggplot()+geom_pointrange(aes(x=m2$summary.random$inspector$mean,xmin=m2$summary.random$inspector$`0.025quant`,xmax=m2$summary.random$inspector$`0.975quant`,y=m2$summary.random$inspector$ID))+theme_minimal()+ylab("inspector")+xlab("95% c.i.")
-
-ggplot()+geom_pointrange(aes(x=m2$summary.random$RES_ORIG_YEAR_BUILT$mean,xmin=m2$summary.random$RES_ORIG_YEAR_BUILT$`0.025quant`,xmax=m2$summary.random$RES_ORIG_YEAR_BUILT$`0.975quant`,y=m2$summary.random$RES_ORIG_YEAR_BUILT$ID))+coord_flip()+theme_minimal()
-
-myroc2 <- pROC::roc(permitted$min_effic_ac,m2$summary.fitted.values$mean) 
-plot(myroc2)
-
-left_join(tractmap,m2$summary.random$tract %>% mutate(GEOID=as.character(ID))) %>% ggplot(.)+geom_sf(aes(fill=mean))+scale_fill_viridis_c()+theme_minimal()
-
-m2$summary.random$Contractor.s.Name %>% filter(`0.025quant`>0|`0.975quant`<0) %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+coord_flip()+theme_minimal()
-
-m2$summary.random$RES_ORIG_YEAR_BUILT %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
-
-m2$summary.random$CODE_YEAR %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+coord_flip()+theme_minimal()
-
-
-m2$summary.random$PAR_YEAR %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
-
-pc.prec_bin = list(prec = list(prior = "pc.prec", param = c(0.5, 0.01)))
-summary(m3)
-permitted$blockgroup1<-paste0(permitted$tract,permitted$blockgroup)
-
-
-
-m3<-inla(heatpump.central~scale(log(APPRAISE_1+1))+
-           scale(pred.bla)+
-           scale(pred.his)+
-           f(D_CLASS,model="iid",hyper=pc.prec_bin)+
-           f(ZONE_ID,model="iid",hyper=pc.prec_bin)+
-           f(blockgroup1, model="iid",hyper=pc.prec_bin)+
-           f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
-           f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_bin)+
-           scale(RES_ABOVE_)*scale(Valuation)+
-           f(CODE_YEAR,model="iid",hyper=pc.prec_bin)+
-           shortermrental+
-           as.factor(xcelpartner.hp.2024)+
-           f(Contractor.s.Name,model="iid",hyper=pc.prec_bin)+
-           is.na(inspector)+
-           f(week, model="rw1",cyclic=T),
-         data=permitted,
-         family="binomial", 
-         control.predictor=list(link= 1))
-
-m4<-inla(heatpump.central~scale(log(APPRAISE_1+1))+
-           scale(pred.bla)+
-           scale(pred.his)+
-           f(D_CLASS,model="iid",hyper=pc.prec_bin)+
-           f(ZONE_ID,model="iid",hyper=pc.prec_bin)+
-           f(blockgroup1, model="iid",hyper=pc.prec_bin)+
-           f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
-           f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_bin)+
-           scale(RES_ABOVE_)*scale(Valuation)+
-           f(CODE_YEAR,model="iid",hyper=pc.prec_bin)+
-           shortermrental+
-           f(Contractor.s.Name,model="iid",hyper=pc.prec_bin)+
-           is.na(inspector)+
-           f(week, model="rw1",cyclic=T),
-         data=filter(permitted, xcelpartner.hp.2024==0),
-         family="binomial", 
-         control.predictor=list(link= 1))
-
-
-
-summary(m3)
-
-ggplot()+geom_pointrange(aes(x=m3$summary.random$CODE_YEAR$mean,xmin=m3$summary.random$CODE_YEAR$`0.025quant`,xmax=m3$summary.random$CODE_YEAR$`0.975quant`,y=as.character(m3$summary.random$CODE_YEAR$ID)))+coord_flip()+theme_minimal()+ylab("building code")+xlab("CI bounds (heat pump ln odds)")
 
 
 
 
-m3$summary.random$week %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
-
-
-m3$summary.random$PAR_YEAR %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
-
-
-m3$summary.random$Contractor.s.Name %>% filter(`0.025quant`>0|`0.975quant`<0) %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+coord_flip()+theme_minimal()+xlab("company")+ylab("random effect credible interval")
-
-m3$summary.random$RES_ORIG_YEAR_BUILT %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
-
-ggplot(m3$summary.random$week)+geom_pointrange(aes(x=ID,y=mean,ymin=`0.025quant`,ymax=`0.975quant`,colour="heatpump"))+theme_minimal()+geom_pointrange(data=mcool$summary.random$week, aes(x=ID,y=mean,ymin=`0.025quant`,ymax=`0.975quant`,colour="cooling efficiency"))+geom_pointrange(data=m2$summary.random$week, aes(x=ID,y=mean,ymin=`0.025quant`,ymax=`0.975quant`,colour="non condense. furnace"))+theme_minimal()+geom_pointrange(data=m4$summary.random$week, aes(x=ID,y=mean,ymin=`0.025quant`,ymax=`0.975quant`,colour="xcelp"))
-
-
-
-
-
-
-
-
-m4$summary.random$RES_ORIG_YEAR_BUILT %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
-
-
-
-counties<-tigris::counties(state="CO")
-places<-tigris::places(state="CO",cb=T)
-
-counties$included<-counties$NAME%in%c("Pueblo","Denver")
-
-
-ggplot(counties)+geom_sf(aes(fill=included))+ggthemes::theme_map()+scale_fill_manual(values=c("grey","red"),guide=F)+geom_sf(data=filter(places,NAME=="Fort Collins"),colour="red",fill="red")
-
-pueb<-readRDS("/Users/rpscott/Documents/GitHub/RESPECT-QTS/pueblo_housing_data/processed_data/permit_s_2018.version3.rds")
-den<-permitted
-
- %>% mutate(Date=Date.Submitted %>% lubridate::mdy()) 
-rbind(den %>% select(DATE,Permit..) %>% rename(Date=DATE,Permit_No=Permit..) %>% mutate(sample="Denver"),pueb %>% select(Date,Permit_No) %>% mutate(sample="Pueblo")) %>% ggplot()+geom_histogram(aes(x=Date,fill=sample),position="stack")+ggthemes::scale_fill_tableau()+theme_minimal()
 
 
 
@@ -835,20 +565,6 @@ rt<-esri2sf::esri2sf("https://services1.arcgis.com/zdB7qR0BtYrg0Xpl/ArcGIS/rest/
 
 mfail$summary.fixed
 library(ggplot2)
-m4$summary.random$Contractor.s.Name %>% left_join(.,unique(cooling %>% select(Contractor.s.Name,xcelpartner.hp.2024)) %>% rename(ID=Contractor.s.Name)) %>% filter(`0.025quant`>0|`0.975quant`<0) %>% ggplot()+geom_pointrange(aes(x=rank(mean),y=mean,ymax=`0.975quant`,ymin=`0.025quant`,colour=as.factor(xcelpartner.hp.2024)))+geom_hline(aes(yintercept=0))+coord_flip()+theme_minimal()+theme(legend.position=c(.8,.2))+geom_text(aes(x=rank(mean),y=-4,label=ID),hjust="left",size=2.5)+ggthemes::scale_colour_few(name="QI Partner")
-
-m4$summary.random$RES_ORIG_YEAR_BUILT %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
-
-m4$summary.random$RES_ORIG_YEAR_BUILT %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
-
-m4$summary.random$week %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
-
-m4$summary.random$PAR_YEAR %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()
-
-mfail$summary.random$real_inspector %>% ggplot()+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+geom_hline(aes(yintercept=0))+theme_minimal()+coord_flip()
-
-
-ggplot(m4$summary.fixed %>% mutate(ID=varrename_1(rownames(.))) %>% filter(ID!="(Intercept)"))+geom_hline(aes(yintercept=0))+geom_pointrange(aes(x=ID,y=mean,ymax=`0.975quant`,ymin=`0.025quant`))+coord_flip()+theme_minimal()+ylab("ln odds of failed inspection")+theme(text=element_text(size=20))+xlab("fixed effect")
 
 varrename_1<-function(X) case_match(X,"(Intercept)"~"Intercept",
            "scale(Valuation)" ~ "Permit Valuation",
@@ -896,9 +612,10 @@ exp(-.3)
 
 rbind(rbind(mcool$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="SEER"),
       mcost$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="Value"),
-      mfail$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="Denial")) %>% filter(ID=="test: utility Q.I. partner") %>% mutate(term="Q.I."),rbind(mcool$summary.random$Contractor.s.Name %>% mutate(model="SEER"),
+      mfail$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="Denial"),
+      msize$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="Size")) %>% filter(ID=="test: utility Q.I. partner") %>% mutate(term="Q.I."),rbind(mcool$summary.random$Contractor.s.Name %>% mutate(model="SEER"),
       mcost$summary.random$Contractor.s.Name %>% mutate(model="Value"),
-      mfail$summary.random$Contractor.s.Name %>% mutate(model="Denial"))  %>% mutate(term="company random")) %>% ggplot()+geom_hline(aes(yintercept=0))+geom_pointrange(aes(x=mean,y=mean,ymax=`0.975quant`,ymin=`0.025quant`,colour=term))+facet_grid(term~model,scale="free_x")+theme_bw()+ylab("posterior value")+theme(text=element_text(size=20))+xlab("fixed effect")+theme(legend.position="top")+ggthemes::scale_colour_colorblind()
+      mfail$summary.random$Contractor.s.Name %>% mutate(model="Denial"),msize$summary.random$Contractor.s.Name %>% mutate(model="Size"))  %>% mutate(term="company random")) %>% ggplot()+geom_hline(aes(yintercept=0))+geom_pointrange(aes(x=mean,y=mean,ymax=`0.975quant`,ymin=`0.025quant`,colour=term))+facet_grid(term~model,scale="free_x")+theme_bw()+ylab("posterior value")+theme(text=element_text(size=20))+xlab("fixed effect")+theme(legend.position="top")+ggthemes::scale_colour_colorblind()
 
 exp(mcost$summary.fixed$mean[[1]]+mcost$summary.fixed$mean[[17]])-exp(mcost$summary.fixed$mean[[1]])
 ggplot(mfail$summary.random$RES_ORIG_YEAR_BUILT)+geom_pointrange(aes(x=ID,y=mean,ymin=`0.025quant`,ymax=`0.975quant`))+theme_minimal()
@@ -923,16 +640,6 @@ rbind(rbind(mcool$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="SE
 
 
 
-cooling$sow[is.na(cooling$ac_efficiency)]
-
-
-tops<-read.csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vT5w_SsHqNpDlkzD2CLaEkB0cejW0M0iurmPKQT5Benw98WTrQn9hCeSU8HvA4KLDijQAbZI2MZyDAV/pub?gid=1645890024&single=true&output=csv")
-
-
-cooling$top2020
-head(cooling)
-
-
 
 mcool2<-inla(ac_efficiency~1+
               scale(log(APPRAISE_1+1))+
@@ -949,7 +656,6 @@ mcool2<-inla(ac_efficiency~1+
               scale(pred.bla)+
               scale(pred.his)+
               as.factor(xcelpartner.hp.2024+topstotal)+
-              scale(Valuation)+
               f(PAR_YEAR,model="iid",hyper=pc.prec_zib)+
               f(real_inspector,model="iid",hyper=pc.prec_gaus)+
               f(D_CLASS,model="iid",hyper=pc.prec_zib)+
@@ -964,11 +670,73 @@ summary(mcool2)
 
 
 mcost2<-inla(log(c(Valuation+1))~1+heatpump.central+
+               scale(log(APPRAISE_1+1))+
+               +scale(log(RES_ABOVE_))+
+               scale(heatanomoly)+
+               heatpump.central+
+               scale(log(sowschar+1))+
+               scale(log(contractortotal))+
+               scale(ac_efficiency)+
+               scale(ac_size)+
+               f(Class, model="iid",hyper=pc.prec_gaus)+
+               furnace+
+               multiton+
+               duct+
+               vent+
+               scale(perc.over.65)+
+               scale(pred.his)+
+               scale(pred.bla)+
+               scale(MED_HH_INCOME)+
+               as.factor(xcelpartner.hp.2024+topstotal)+
+               f(PAR_YEAR,model="iid",hyper=pc.prec_gaus)+
+               f(real_inspector,model="iid",hyper=pc.prec_gaus)+
+               f(D_CLASS,model="iid",hyper=pc.prec_gaus)+
+               f(Contractor.s.Name,model="iid",hyper=pc.prec_gaus)+
+               f(tract,model="iid",hyper=pc.prec_gaus)+
+               f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_gaus)+
+               f(week, model="rw1",cyclic=T,hyper=pc.prec_gaus),
+             data=filter(cooling, Valuation<=50000),
+             ,control.predictor=list(link= 1),
+             family="gaussian")
+summary(mcost2)
+
+mfail2<-inla(failed_inspection~heatpump.central+
+              scale(log(APPRAISE_1+1))+
+              +scale(log(RES_ABOVE_))+
+              scale(heatanomoly)+
+              scale(Valuation)+
+              heatpump.central+
+              scale(log(sowschar+1))+
+              f(Class, model="iid",hyper=pc.prec_bin)+
+              furnace+
+              multiton+
+              duct+
+              vent+
+              scale(perc.over.65)+
+              scale(pred.his)+
+              scale(pred.bla)+
+              scale(MED_HH_INCOME)+
+              as.factor(xcelpartner.hp.2024+topstotal)+
+              f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
+              f(real_inspector,model="iid",hyper=pc.prec_bin)+
+              f(D_CLASS,model="iid",hyper=pc.prec_bin)+
+              f(Contractor.s.Name,model="iid",hyper=pc.prec_bin)+
+              f(tract,model="iid",hyper=pc.prec_bin)+
+              f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_bin)+
+              f(week, model="rw1",cyclic=T,hyper=pc.prec_bin),
+            data=filter(cooling, Valuation<=50000),
+            family="binomial",
+            control.predictor=list(link= 1))
+
+
+summary(msize)
+msize2<-inla(ac_size~1+heatpump.central+
               scale(log(APPRAISE_1+1))+
               +scale(log(RES_ABOVE_))+
               scale(heatanomoly)+
               heatpump.central+
               scale(log(sowschar+1))+
+              scale(log(contractortotal))+
               f(Class, model="iid",hyper=pc.prec_gaus)+
               furnace+
               multiton+
@@ -991,48 +759,131 @@ mcost2<-inla(log(c(Valuation+1))~1+heatpump.central+
             data=filter(cooling, Valuation<=50000),
             ,control.predictor=list(link= 1),
             family="gaussian")
-summary(mcost2)
 
-mfail2<-inla(failed_inspection~heatpump.central+
-              scale(log(APPRAISE_1+1))+
-              +scale(log(RES_ABOVE_))+
-              scale(heatanomoly)+
-              scale(Valuation)+
-              heatpump.central+
-              scale(log(sowschar+1))+
-              f(Class, model="iid",hyper=pc.prec_bin)+
-              furnace+
-              multiton+
-              duct+
-              vent+
-              scale(perc.over.65)+
-              scale(pred.his)+
-              scale(pred.bla)+
-              scale(MED_HH_INCOME)+
-              as.factor(xcelpartner.hp.2024+topstotal)+
-              scale(ac_efficiency)+
-              f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
-              f(real_inspector,model="iid",hyper=pc.prec_bin)+
-              f(D_CLASS,model="iid",hyper=pc.prec_bin)+
-              f(Contractor.s.Name,model="iid",hyper=pc.prec_bin)+
-              f(tract,model="iid",hyper=pc.prec_bin)+
-              f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_bin)+
-              f(week, model="rw1",cyclic=T,hyper=pc.prec_bin),
-            data=filter(cooling, Valuation<=50000),
-            family="binomial",
-            control.predictor=list(link= 1))
-summary(mfail2)
+
+summary(msize2)
 cooling$D_CLASS %>% table()
 cooling$tract %>% table() %>% length()
 which(filter(cooling, Valuation<=50000)$failed_inspection %>% is.na()==F) %>% length()
 
 table(cooling$real_inspector) %>% length()
-t11<-rbind(mcool2$summary.fixed %>% mutate(ID=rownames(.),model="SEER"),mcost2$summary.fixed%>% mutate(ID=rownames(.),model="Valuation"),mfail2$summary.fixed%>% mutate(ID=rownames(.),model="Denial")) %>% filter(.,stringr::str_detect(ID,"xcel")) 
+t11<-rbind(mcool2$summary.fixed %>% mutate(ID=rownames(.),model="SEER"),mcost2$summary.fixed%>% mutate(ID=rownames(.),model="Valuation"),mfail2$summary.fixed %>% mutate(ID=rownames(.),model="Denial"),msize2$summary.fixed%>% mutate(ID=rownames(.),model="Size")) %>% filter(.,stringr::str_detect(ID,"xcel")) 
 t11$ID[stringr::str_which(t11$ID,"\\)2")]<-"top rebate earners" 
-t11$ID[stringr::str_which(t11$ID,"1")]<-"all program partners" 
+t11$ID[stringr::str_which(t11$ID,"1")]<-"other program partners" 
 
-t11 %>% ggplot()+geom_hline(aes(yintercept=0),lty=2)+geom_pointrange(aes(x=ID,y=mean,ymin=`0.025quant`,ymax=`0.975quant`))+coord_flip()+facet_wrap(~model)+theme_bw()+xlab("subgroup")+ylab("credible interval and mean")
+t11 %>% ggplot()+geom_hline(aes(yintercept=0),lty=2)+geom_pointrange(aes(x=ID,y=mean,ymin=`0.025quant`,ymax=`0.975quant`))+coord_flip()+facet_wrap(~model)+theme_bw()+xlab("program partners, compared to non-partner reference")+ylab("mean and 95% credible interval")
  
-mcool$summary$fix
+
+
+mfail2<-inla(failed_inspection~heatpump.central+
+               scale(log(APPRAISE_1+1))+
+               +scale(log(RES_ABOVE_))+
+               scale(heatanomoly)+
+               scale(Valuation)+
+               heatpump.central+
+               scale(log(sowschar+1))+
+               f(Class, model="iid",hyper=pc.prec_bin)+
+               furnace+
+               multiton+
+               duct+
+               vent+
+               scale(perc.over.65)+
+               scale(pred.his)+
+               scale(pred.bla)+
+               scale(MED_HH_INCOME)+
+               as.factor(xcelpartner.hp.2024+topstotal)+
+               f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
+               f(real_inspector,model="iid",hyper=pc.prec_bin)+
+               f(D_CLASS,model="iid",hyper=pc.prec_bin)+
+               f(Contractor.s.Name,model="iid",hyper=pc.prec_bin)+
+               f(tract,model="iid",hyper=pc.prec_bin)+
+               f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_bin)+
+               f(week, model="rw1",cyclic=T,hyper=pc.prec_bin),
+             data=filter(cooling, Valuation<=50000),
+             family="binomial",
+             control.predictor=list(link= 1))
+
+
+summary(msize)
+msize3<-inla(ac_size~1+heatpump.central+
+               scale(log(APPRAISE_1+1))+
+               +scale(log(RES_ABOVE_))+
+               scale(heatanomoly)+
+               heatpump.central+
+               scale(log(sowschar+1))+
+               scale(log(contractortotal))+
+               f(Class, model="iid",hyper=pc.prec_gaus)+
+               furnace+
+               multiton+
+               duct+
+               vent+
+               geo+
+               scale(perc.over.65)+
+               scale(pred.his)+
+               scale(pred.bla)+
+               scale(MED_HH_INCOME)+
+               as.factor(xcelpartner.hp.2024+topstotal)+
+               f(PAR_YEAR,model="iid",hyper=pc.prec_gaus)+
+               f(real_inspector,model="iid",hyper=pc.prec_gaus)+
+               f(D_CLASS,model="iid",hyper=pc.prec_gaus)+
+               f(Contractor.s.Name,model="iid",hyper=pc.prec_gaus)+
+               f(tract,model="iid",hyper=pc.prec_gaus)+
+               f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_gaus)+
+               f(week, model="rw1",cyclic=T,hyper=pc.prec_gaus),
+             data=filter(cooling, Valuation<=50000,ac_efficiency==0),
+             ,control.predictor=list(link= 1),
+             family="gaussian")
+
+
+mfail3<-inla(failed_inspection~heatpump.central+
+               scale(log(APPRAISE_1+1))+
+               +scale(log(RES_ABOVE_))+
+               scale(heatanomoly)+
+               scale(Valuation)+
+               heatpump.central+
+               scale(log(sowschar+1))+
+               f(Class, model="iid",hyper=pc.prec_bin)+
+               furnace+
+               multiton+
+               duct+
+               vent+
+               scale(perc.over.65)+
+               scale(pred.his)+
+               scale(pred.bla)+
+               scale(MED_HH_INCOME)+
+               as.factor(xcelpartner.hp.2024+topstotal)+
+               f(PAR_YEAR,model="iid",hyper=pc.prec_bin)+
+               f(real_inspector,model="iid",hyper=pc.prec_bin)+
+               f(D_CLASS,model="iid",hyper=pc.prec_bin)+
+               f(Contractor.s.Name,model="iid",hyper=pc.prec_bin)+
+               f(tract,model="iid",hyper=pc.prec_bin)+
+               f(RES_ORIG_YEAR_BUILT,model="rw1",hyper=pc.prec_bin)+
+               f(week, model="rw1",cyclic=T,hyper=pc.prec_bin),
+             data=filter(cooling, Valuation<=50000,ac_efficiency<=1),
+             family="binomial",
+             control.predictor=list(link= 1))
+
+t12<-rbind(mfail3$summary.fixed %>% mutate(ID=rownames(.),model="Denial"),msize3$summary.fixed%>% mutate(ID=rownames(.),model="Size")) %>% filter(.,stringr::str_detect(ID,"xcel")) 
+t12$ID[stringr::str_which(t12$ID,"\\)2")]<-"top rebate earners" 
+t12$ID[stringr::str_which(t12$ID,"1")]<-"other program partners" 
+
+t12 %>% ggplot()+geom_hline(aes(yintercept=0),lty=2)+geom_pointrange(aes(x=ID,y=mean,ymin=`0.025quant`,ymax=`0.975quant`))+coord_flip()+facet_wrap(~model)+theme_bw()+xlab("program partners, compared to non-partner reference")+ylab("mean and 95% credible interval")
+
+
 
 cooling %>% saveRDS("coolingworking.rds")
+
+
+rbind(mcool$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="SEER"),
+      mcost$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="Value"),
+      mfail$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="Denial"),
+      msize$summary.fixed %>% mutate(ID=varrename_1(rownames(.)),model="Size")) %>% write.csv("model_out_10.10.denver.fixed.csv")
+
+
+
+rbind(mcool$summary.hyperpar %>% mutate(ID=rownames(.),model="SEER"),
+      mcost$summary.hyperpar %>% mutate(ID=rownames(.),model="Value"),
+      mfail$summary.hyperpar  %>% mutate(ID=rownames(.),model="Denial"),
+      msize$summary.hyperpar  %>% mutate(ID=rownames(.),model="Size")) %>% write.csv("model_out_10.10.denver.random.csv")
+
+      
